@@ -1,10 +1,13 @@
+#include <stdbool.h>
+
 #include "libserialport.h"
 #include "zmq.h"
 
 struct sp_port;
 
-typedef struct _serial_port_zmq_relay
+typedef struct _serial_zmq_relay
 {
+    // Setup port struct
     sp_port * port;
 
     // ZMQ socket
@@ -18,22 +21,17 @@ typedef struct _serial_port_zmq_relay
     // Buffer used for recieving dumping serial port buffer into publisher
     uint8_t * msg_pub_buffer;
 
-} serial_port_zmq_relay;
+} serial_zmq_relay;
 
 
-bool open_relay(
-                char * port_name,
-                int baudrate,
-                // int bits,
-                // sp_parity parity,
-                // int stopbits,
-                // sp_flowcontrol flowcontrol,
-                // void *context,
-                const char * sub_endpoint,
-                const char * pub_endpoint,
-                );
+serial_zmq_relay * open_relay(
+                              char * port_name,
+                              int baudrate,
+                              const char * sub_endpoint,
+                              const char * pub_endpoint,
+                              );
 
 
 bool close_relay(
-                 serial_port_zmq_relay relay,
+                 serial_zmq_relay * relay,
                  );
