@@ -4,12 +4,30 @@
 
 #define PORT_BUFFER_SIZE 1024
 
+typedef struct _serial_zmq_relay
+{
+    // Setup port struct
+    struct sp_port *port;
+
+    // ZMQ socket
+    void *context;
+    // Socket which Mercury will message to (this is subscribing socket)
+    void *serial_subscriber_socket;
+    // Buffer used for recieving dumping serial port buffer into publisher
+    uint8_t *msg_sub_buffer;
+    // Socket which Mercury will listen to (this is publishing socket)
+    void *serial_publisher_socket;
+    // Buffer used for recieving dumping serial port buffer into publisher
+    uint8_t *msg_pub_buffer;
+
+} serial_zmq_relay;
+
 // Open a serial port in read write mode and the associated ZMQ ports.
 // If any issue arises closes everything and returns a NULL pointer.
-serial_zmq_relay *open_relay(const char *port_name,
-                             int baudrate,
-                             const char *sub_endpoint,
-                             const char *pub_endpoint)
+void * open_relay(const char *port_name,
+                  int baudrate,
+                  const char *sub_endpoint,
+                  const char *pub_endpoint)
 {
     // Initialize all the allocated variables
     struct sp_port *port;
@@ -125,8 +143,7 @@ fail:
     return NULL;
 }
 
-
-void relay_read(serial_zmq_relay * relay)
+void _relay_read(serial_zmq_relay *relay)
 {
     int pc = 0;
     int rc = 0;
@@ -152,7 +169,12 @@ void relay_read(serial_zmq_relay * relay)
     return;
 }
 
-void relay_write(serial_zmq_relay * relay)
+void relay_read(void *relay)
+{
+    return _relay_read((serial_zmq_relay *)relay);
+}
+
+void _relay_write(serial_zmq_relay *relay)
 {
     int pc = 0;
 
@@ -161,7 +183,6 @@ void relay_write(serial_zmq_relay * relay)
                           (void *)relay->msg_sub_buffer,
                           PORT_BUFFER_SIZE,
                           ZMQ_DONTWAIT);
-    // assert(nbytes != -1);
 
     if (nbytes > 0)
     {
@@ -175,7 +196,12 @@ void relay_write(serial_zmq_relay * relay)
     return;
 }
 
-bool close_relay(serial_zmq_relay * relay)
+void relay_write(void *relay)
+{
+    return _relay_write((serial_zmq_relay *)relay);
+}
+
+bool _close_relay(serial_zmq_relay *relay)
 {
     // Result check int
     enum sp_return pc;
@@ -199,4 +225,26 @@ bool close_relay(serial_zmq_relay * relay)
     sp_free_port(relay->port);
 
     return true;
+}
+
+bool close_relay(void *relay)
+{
+    return _close_relay((serial_zmq_relay *)relay);
+}
+
+void relay_launch(const char *port_name,
+                  int baudrate,
+                  const char *sub_endpoint,
+                  const char *pub_endpoint)
+{
+    void *relay = open_relay(port_name, baudrate, sub_endpoint, pub_endpoint);
+
+    int pc = 0;
+
+    while (true)
+    {
+        relay_read(relay);
+        relay_write(relay);
+    }
+    close_relay(relay);
 }

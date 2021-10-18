@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.0)
-project(hg VERSION 0.1.0 LANGUAGES C)
+project(serial_relay VERSION 0.1.0 LANGUAGES C)
 
 include(CTest)
 enable_testing()
@@ -56,29 +56,25 @@ target_include_directories(libserialport
     ${LIBSP_INCLUDE_DIRS}
 )
 
-# Build the hg library
-# add_library(hg SHARED
+# Build the serial_relay library
+# add_library(serial_relay SHARED
 #     serial_relay.h
 #     serial_relay.c
 # )
-# add_library(hg SHARED
-#     serial_relay.h
-#     serial_relay.c
-# )
-add_executable(hg
+add_executable(serial_relay
     serial_relay.h
     serial_relay.c
-    main.c
+    relay_launch.c
 )
 
 
 # Link against zmq and libserialport (prefer private over public linking)
-target_link_libraries(hg
+target_link_libraries(serial_relay
     PRIVATE
     libserialport
     libzmq
 )
-target_include_directories(hg
+target_include_directories(serial_relay
     PRIVATE
     $<BUILD_INTERFACE:${libzmq_SOURCE_DIR}/include>
 )
