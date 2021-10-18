@@ -4,8 +4,6 @@
 
 #define PORT_BUFFER_SIZE 1024
 
-// printf("Line #: %d.\n", __LINE__);
-
 // Open a serial port in read write mode and the associated ZMQ ports.
 // If any issue arises closes everything and returns a NULL pointer.
 serial_zmq_relay *open_relay(const char *port_name,
@@ -21,11 +19,12 @@ serial_zmq_relay *open_relay(const char *port_name,
     void *serial_publisher_socket;
     uint8_t *msg_pub_buffer;
 
-    // printf("Line #: %d.\n", __LINE__);
-
     // Allocate memory for relay object
     serial_zmq_relay *relay = calloc(1, sizeof(serial_zmq_relay));
-    if (relay == NULL) { return NULL; }
+    if (relay == NULL)
+    {
+        return NULL;
+    }
 
     // Fill in the relay object
     relay->port                     = port;
@@ -35,9 +34,6 @@ serial_zmq_relay *open_relay(const char *port_name,
     relay->serial_publisher_socket  = serial_publisher_socket;
     relay->msg_pub_buffer           = msg_pub_buffer;
 
-    // printf("Line #: %d.\n", __LINE__);
-    // printf("port pointer: %p\n", relay->port);
-
     // Result check ints
     enum sp_return pc;
 	int rc = 0;
@@ -46,15 +42,20 @@ serial_zmq_relay *open_relay(const char *port_name,
     // ***************** Initialize Pointers *****************
     // Setup the serial ports
     pc = sp_get_port_by_name(port_name, &(relay->port));
-    if(pc != SP_OK) { goto fail; }
-
+    if(pc != SP_OK)
+    {
+        goto fail;
+    }
     pc = sp_open(relay->port, SP_MODE_READ);
-    if(pc != SP_OK) { goto fail; }
-
+    if(pc != SP_OK)
+    {
+        goto fail;
+    }
     pc = sp_set_baudrate(relay->port, baudrate);
-    if(pc != SP_OK) { goto fail; }
-
-    printf("Line #: %d.\n", __LINE__);
+    if(pc != SP_OK)
+    {
+        goto fail;
+    }
 
     // Setup the message buffers
     relay->msg_sub_buffer = (uint8_t *)calloc(PORT_BUFFER_SIZE, sizeof(uint8_t));
@@ -62,14 +63,11 @@ serial_zmq_relay *open_relay(const char *port_name,
     {
         goto fail;
     }
-
     relay->msg_pub_buffer = (uint8_t *)calloc(PORT_BUFFER_SIZE, sizeof(uint8_t));
     if (relay->msg_pub_buffer == NULL)
     {
         goto fail;
     }
-
-    // printf("Line #: %d.\n", __LINE__);
 
     // Setup the zmq ports
     relay->context = zmq_ctx_new();
@@ -77,20 +75,16 @@ serial_zmq_relay *open_relay(const char *port_name,
     {
         goto fail;
     }
-
     relay->serial_publisher_socket = zmq_socket(relay->context, ZMQ_PUB);
     if (relay->serial_publisher_socket == NULL)
     {
         goto fail;
     }
-
     relay->serial_subscriber_socket = zmq_socket(relay->context, ZMQ_SUB);
     if (relay->serial_subscriber_socket == NULL)
     {
         goto fail;
     }
-
-    // printf("Line #: %d.\n", __LINE__);
 
     // Set socket options before connecting subsciber to the port
     rc = zmq_setsockopt(relay->serial_subscriber_socket, ZMQ_SUBSCRIBE, "", 0);
@@ -105,14 +99,11 @@ serial_zmq_relay *open_relay(const char *port_name,
     {
         goto fail;
     }
-
     rc = zmq_connect(relay->serial_subscriber_socket, sub_endpoint);
     if(rc != 0)
     {
         goto fail;
     }
-
-    // printf("Line #: %d.\n", __LINE__);
 
     // Set conflate option for serial publisher
     rc = zmq_setsockopt(relay->serial_publisher_socket, ZMQ_CONFLATE, &conflate, sizeof(conflate));
@@ -120,14 +111,11 @@ serial_zmq_relay *open_relay(const char *port_name,
     {
         goto fail;
     }
-
     rc = zmq_bind(relay->serial_publisher_socket, pub_endpoint);
     if(rc != 0)
     {
         goto fail;
     }
-
-    // printf("Line #: %d.\n", __LINE__);
 
     return relay;
 
@@ -140,36 +128,22 @@ fail:
 
 void relay_read(serial_zmq_relay * relay)
 {
-    int rc = 0;
     int pc = 0;
+    int rc = 0;
 
     // Check how many bytes are avalible from the serial port and read them in
     int bytes_waiting = sp_input_waiting(relay->port);
-    if (bytes_waiting != -1)
-    {
-        printf("%d\n", bytes_waiting);
-    }
-
     if (bytes_waiting > 0)
     {
         pc = sp_blocking_read(relay->port,
-                              (void *)relay->msg_pub_buffer,
+                              (void *) relay->msg_pub_buffer,
                               bytes_waiting,
-                              (unsigned int) 1000
-                              );
+                              (unsigned int) 1000);
         assert(pc == bytes_waiting);
-
-        // printf("Heard error code %d", pc);
-
-        // for (int i = 0; i < bytes_waiting; i++)
-        // {
-        //     printf("%d", relay->msg_pub_buffer);
-        // }
-        // printf("\n");
 
         // Relay those bytes through zmq
         rc = zmq_send(relay->serial_publisher_socket,
-                      (void *)relay->msg_pub_buffer,
+                      (void *) relay->msg_pub_buffer,
                       bytes_waiting,
                       0);
         assert(rc == bytes_waiting);
@@ -186,15 +160,15 @@ void relay_write(serial_zmq_relay * relay)
     int nbytes = zmq_recv(relay->serial_subscriber_socket,
                           (void *)relay->msg_sub_buffer,
                           PORT_BUFFER_SIZE,
-                          0);
-    assert(nbytes != -1);
+                          ZMQ_DONTWAIT);
+    // assert(nbytes != -1);
 
     if (nbytes > 0)
     {
         pc = sp_nonblocking_write(relay->port,
-                                relay->msg_pub_buffer,
-                                nbytes
-                                );
+                                  relay->msg_pub_buffer,
+                                  nbytes
+                                  );
         assert(pc == nbytes);
     }
 
