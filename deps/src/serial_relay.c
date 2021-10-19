@@ -22,6 +22,7 @@ typedef struct _serial_zmq_relay
 
 } serial_zmq_relay;
 
+
 // Open a serial port in read write mode and the associated ZMQ ports.
 // If any issue arises closes everything and returns a NULL pointer.
 void * open_relay(const char *port_name,
@@ -29,28 +30,13 @@ void * open_relay(const char *port_name,
                   const char *sub_endpoint,
                   const char *pub_endpoint)
 {
-    // Initialize all the allocated variables
-    struct sp_port *port;
-    void *context;
-    void *serial_subscriber_socket;
-    uint8_t *msg_sub_buffer;
-    void *serial_publisher_socket;
-    uint8_t *msg_pub_buffer;
-
     // Allocate memory for relay object
     serial_zmq_relay *relay = calloc(1, sizeof(serial_zmq_relay));
     if (relay == NULL)
     {
-        return NULL;
+        fprintf(stderr, "Failed to allocate serial_zmq_relay object!\n");
+        goto fail_relay_calloc;
     }
-
-    // Fill in the relay object
-    relay->port                     = port;
-    relay->context                  = context;
-    relay->serial_subscriber_socket = serial_subscriber_socket;
-    relay->msg_sub_buffer           = msg_sub_buffer;
-    relay->serial_publisher_socket  = serial_publisher_socket;
-    relay->msg_pub_buffer           = msg_pub_buffer;
 
     // Result check ints
     enum sp_return pc;
@@ -62,84 +48,113 @@ void * open_relay(const char *port_name,
     pc = sp_get_port_by_name(port_name, &(relay->port));
     if(pc != SP_OK)
     {
-        goto fail;
+        fprintf(stderr, "Failed to find serial port by name %s!\n", port_name);
+        goto fail_port_name;
     }
     pc = sp_open(relay->port, SP_MODE_READ);
     if(pc != SP_OK)
     {
-        goto fail;
+        fprintf(stderr, "Failed to open serial port %s!\n", port_name);
+        goto fail_sp_open;
     }
     pc = sp_set_baudrate(relay->port, baudrate);
     if(pc != SP_OK)
     {
-        goto fail;
+        fprintf(stderr, "Failed to set serial port baudrate to %d!\n", baudrate);
+        goto fail_set_baudrate;
     }
 
     // Setup the message buffers
     relay->msg_sub_buffer = (uint8_t *)calloc(PORT_BUFFER_SIZE, sizeof(uint8_t));
     if (relay->msg_sub_buffer == NULL)
     {
-        goto fail;
+        fprintf(stderr, "Failed to allocate serial subscirber buffer!\n");
+        goto fail_sub_buffer;
     }
     relay->msg_pub_buffer = (uint8_t *)calloc(PORT_BUFFER_SIZE, sizeof(uint8_t));
     if (relay->msg_pub_buffer == NULL)
     {
-        goto fail;
+        fprintf(stderr, "Failed to allocate serial publisher buffer!\n");
+        goto fail_pub_buffer;
     }
 
     // Setup the zmq ports
     relay->context = zmq_ctx_new();
     if (relay->context == NULL)
     {
-        goto fail;
+        fprintf(stderr, "Failed to create new ZMQ context!\n");
+        goto fail_context;
     }
     relay->serial_publisher_socket = zmq_socket(relay->context, ZMQ_PUB);
     if (relay->serial_publisher_socket == NULL)
     {
-        goto fail;
+        fprintf(stderr, "Failed to create ZMQ publisher socket!\n");
+        goto fail_pub_socket;
     }
     relay->serial_subscriber_socket = zmq_socket(relay->context, ZMQ_SUB);
     if (relay->serial_subscriber_socket == NULL)
     {
-        goto fail;
+        fprintf(stderr, "Failed to create ZMQ subscriber socket!\n");
+        goto fail_sub_socket;
     }
 
-    // Set socket options before connecting subsciber to the port
+    // Setup serial subscriber, also set conflate option
     rc = zmq_setsockopt(relay->serial_subscriber_socket, ZMQ_SUBSCRIBE, "", 0);
     if(rc != 0)
     {
-        goto fail;
+        fprintf(stderr, "Failed to set socket to subscriber!\n", sub_endpoint);
+        goto fail_sub_setsockopt;
     }
-
-    // Set conflate option for serial subsciber
     rc = zmq_setsockopt(relay->serial_subscriber_socket, ZMQ_CONFLATE, &conflate, sizeof(conflate));
     if(rc != 0)
     {
-        goto fail;
+        fprintf(stderr, "Failed to set subscriber conflate option!\n");
+        goto fail_sub_setsockopt;
     }
     rc = zmq_connect(relay->serial_subscriber_socket, sub_endpoint);
     if(rc != 0)
     {
-        goto fail;
+        fprintf(stderr, "Failed to connect ZMQ subscriber to port: %s!\n", sub_endpoint);
+        goto fail_sub_connect;
     }
 
     // Set conflate option for serial publisher
     rc = zmq_setsockopt(relay->serial_publisher_socket, ZMQ_CONFLATE, &conflate, sizeof(conflate));
     if(rc != 0)
     {
-        goto fail;
+        fprintf(stderr, "Failed to set publisher conflate option!\n");
+        goto fail_pub_setsockopt;
     }
     rc = zmq_bind(relay->serial_publisher_socket, pub_endpoint);
     if(rc != 0)
     {
-        goto fail;
+        fprintf(stderr, "Failed to bind ZMQ publisher to port %s\n", pub_endpoint);
+        goto fail_pub_bind;
     }
 
     return relay;
 
-fail:
-    close_relay(relay);
-
+fail_pub_bind:
+fail_pub_setsockopt:
+fail_sub_connect:
+fail_sub_setsockopt:
+    zmq_close(relay->serial_subscriber_socket);
+fail_sub_socket:
+    zmq_close(relay->serial_publisher_socket);
+fail_pub_socket:
+    zmq_ctx_destroy(relay->context);
+fail_context:
+    free(relay->msg_pub_buffer);
+fail_pub_buffer:
+    free(relay->msg_sub_buffer);
+fail_sub_buffer:
+fail_set_baudrate:
+    sp_close(relay->port);
+    sp_free_port(relay->port);
+fail_sp_open:
+fail_port_name:
+    free(relay);
+fail_relay_calloc:
     return NULL;
 }
 
@@ -234,17 +249,27 @@ bool close_relay(void *relay)
 
 void relay_launch(const char *port_name,
                   int baudrate,
+                  // size_t msg_size,
                   const char *sub_endpoint,
                   const char *pub_endpoint)
 {
+    // Build serial-ZMQ relay
     void *relay = open_relay(port_name, baudrate, sub_endpoint, pub_endpoint);
-
-    int pc = 0;
-
-    while (true)
+    // Check that open_relay worked properly
+    if (relay == NULL)
     {
-        relay_read(relay);
-        relay_write(relay);
+        fprintf(stderr, "Failed to build serial-ZMQ relay!");
     }
-    close_relay(relay);
+    else
+    {
+        // Loop through read and write to and from serial/ZMQ
+        while (true)
+        {
+            relay_read(relay);
+            relay_write(relay);
+        }
+        close_relay(relay);
+    }
+
+    return;
 }

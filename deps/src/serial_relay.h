@@ -7,6 +7,7 @@
 
 void *open_relay(const char *port_name,
                  int baudrate,
+                //  size_t msg_size,
                  const char *sub_endpoint,
                  const char *pub_endpoint);
 
@@ -17,5 +18,6 @@ bool close_relay(void *relay);
 
 void relay_launch(const char *port_name,
                   int baudrate,
+                //   size_t msg_size,
                   const char *sub_endpoint,
                   const char *pub_endpoint);
