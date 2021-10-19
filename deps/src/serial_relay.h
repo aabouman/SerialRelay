@@ -16,7 +16,7 @@ void relay_write(void *relay);
 
 bool close_relay(void *relay);
 
-void relay_launch(const char *port_name,
+bool relay_launch(const char *port_name,
                   int baudrate,
                 //   size_t msg_size,
                   const char *sub_endpoint,
