@@ -3,7 +3,6 @@
 
 #define PORT_BUFFER_SIZE 1024
 
-void INThandler(int);
 
 typedef struct _serial_zmq_relay
 {
@@ -251,47 +250,17 @@ bool close_relay(void *relay)
     return _close_relay((serial_zmq_relay *)relay);
 }
 
-bool relay_launch(const char *port_name,
-                  int baudrate,
-                  // size_t msg_size,
-                  const char *sub_endpoint,
-                  const char *pub_endpoint)
+void _relay_launch(serial_zmq_relay *relay)
 {
-    // signal(SIGINT, INThandler);
-
-    // Build serial-ZMQ relay
-    void *relay = open_relay(port_name, baudrate, sub_endpoint, pub_endpoint);
-    // Check that open_relay worked properly
-    if (relay == NULL)
+    while (true)
     {
-        fprintf(stderr, "Failed to build serial-ZMQ relay!");
-        return false;
+        relay_read(relay);
+        relay_write(relay);
     }
-    else
-    {
-        // Loop through read and write to and from serial/ZMQ
-        while (true)
-        {
-            relay_read(relay);
-            relay_write(relay);
-        }
-        close_relay(relay);
-    }
-
-    return true;
+    close_relay(relay);
 }
 
-void INThandler(int sig)
+void relay_launch(void *relay)
 {
-    char c;
-
-    signal(sig, SIG_IGN);
-    printf("OUCH, did you hit Ctrl-C?\n"
-           "Do you really want to quit? [y/n] ");
-    c = getchar();
-    if (c == 'y' || c == 'Y')
-        exit(0);
-    else
-        signal(SIGINT, INThandler);
-    getchar(); // Get new line character
+    return _relay_launch((serial_zmq_relay *)relay);
 }

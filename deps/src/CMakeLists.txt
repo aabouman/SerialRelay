@@ -7,7 +7,7 @@ enable_testing()
 ########################################
 # Download dependencies
 ########################################
-
+include(ExternalProject)  # pull in the `ExternalProject` CMake module
 include(FetchContent)  # pull in the `FetchContent` CMake module
 
 # Download libzmq into `build/_deps
@@ -37,40 +37,104 @@ target_include_directories(libzmq
     $<BUILD_INTERFACE:${libzmq_SOURCE_DIR}/include>
 )
 
-# Find the libserialport package installed on the computer
-find_package(PkgConfig)  # includes the `PkgConfig` CMake module
-pkg_check_modules(LIBSP libserialport)  # searches the computer for the libserialport package
+# SETUP FOR LibSerialPort Install
+# set(libserialport_SOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}/_deps/libserialport-src")
+# set(libserialport_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/_deps/libserialport-build")
+# if(NOT EXISTS libserialport_SOURCE_DIR)
+#     make_directory(${libserialport_SOURCE_DIR})
+# endif()
+# if(NOT EXISTS libserialport_BINARY_DIR)
+#     make_directory(${libserialport_BINARY_DIR})
+# endif()
 
-# Creates an interface target with the info from the previous command
-add_library(libserialport INTERFACE)
+# ExternalProject_Add(libserialport
+#     PREFIX "${CMAKE_CURRENT_BINARY_DIR}/_deps"
+#     GIT_REPOSITORY "git://sigrok.org/libserialport"
+#     GIT_TAG "348a6d353af8ac142f68fbf9fe0f4d070448d945"
+#     SOURCE_DIR ${libserialport_SOURCE_DIR}
+#     BINARY_DIR ${libserialport_BINARY_DIR}
+#     CMAKE_CACHE_ARGS
+#         -DFOO_ENABLE_BAR:BOOL=1
+#         # -DCMAKE_INSTALL_PREFIX=${EXTERNAL_INSTALL_LOCATION}
+#     INSTALL_COMMAND "./autogen.sh && ./configure && make"
+# )
 
-# Link the libserial port libraries so that any target linking this also links against the libserialport libraries
-target_link_libraries(libserialport
-    INTERFACE
-    ${LIBSP_LINK_LIBRARIES}
+# https://github.com/oxullo/plotteron/blob/cee52b054f9a5f009b5eb3e2f7295f275a2abcbb/CMakeLists.txt
+# ExternalProject_Add(
+#     libserialport
+#     PREFIX "${CMAKE_CURRENT_BINARY_DIR}/_deps"
+#     GIT_REPOSITORY https://github.com/sigrokproject/libserialport
+#     SOURCE_DIR ${libserialport_SOURCE_DIR}
+#     BINARY_DIR ${libserialport_BINARY_DIR}
+#     UPDATE_DISCONNECTED true  # need this to avoid constant rebuild
+#     CONFIGURE_HANDLED_BY_BUILD ON  # avoid constant reconfigure
+#     CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
+# )
+
+ExternalProject_Add(libserialport
+    PREFIX "_deps/libserialport"
+    GIT_REPOSITORY "https://github.com/sigrokproject/libserialport"
+    UPDATE_DISCONNECTED true  # need this to avoid constant rebuild
+    CONFIGURE_HANDLED_BY_BUILD ON  # avoid constant reconfigure
+    CONFIGURE_COMMAND <SOURCE_DIR>/configure --prefix=<INSTALL_DIR>
 )
 
-# Add the libserialport header directory so that any target linking this also includes the header files
-target_include_directories(libserialport
-    INTERFACE
-    ${LIBSP_INCLUDE_DIRS}
+ExternalProject_Get_Property(libserialport SOURCE_DIR)
+
+ExternalProject_Add_Step(
+    libserialport
+    bootstrap
+    COMMAND ./autogen.sh
+    DEPENDEES download
+    DEPENDERS configure
+    WORKING_DIRECTORY ${SOURCE_DIR}
 )
 
-# Build the relay_launch executable
+set(LIBSERIALPORT_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/_deps/libserialport/include)
+set(LIBSERIALPORT_LIB ${CMAKE_CURRENT_BINARY_DIR}/_deps/libserialport/lib/libserialport.a)
+include_directories(${LIBSERIALPORT_INCLUDE_DIR})
+
 add_executable(relay_launch
     serial_relay.h
     serial_relay.c
     relay_launch.c
 )
+target_link_libraries(relay_launch
+    ${LIBSERIALPORT_LIB}
+    libzmq
+)
+
+# Find the libserialport package installed on the computer
+# find_package(PkgConfig)  # includes the `PkgConfig` CMake module
+# pkg_check_modules(LIBSP libserialport)  # searches the computer for the libserialport package
+
+# Creates an interface target with the info from the previous command
+# add_library(libserialport INTERFACE)
+
+# Build the relay_launch executable
+
+
+# # Link the libserial port libraries so that any target linking this also links against the libserialport libraries
+# target_link_libraries(relay_launch
+#     INTERFACE
+#     # ${LIBSP_LINK_LIBRARIES}
+#     libserialport
+# )
+
+# # Add the libserialport header directory so that any target linking this also includes the header files
+# target_include_directories(relay_launch
+#     INTERFACE
+#     # ${LIBSP_INCLUDE_DIRS}
+# )
 
 
 # Link against zmq and libserialport (prefer private over public linking)
-target_link_libraries(relay_launch
-    PRIVATE
-    libserialport
-    libzmq
-)
-target_include_directories(relay_launch
-    PRIVATE
-    $<BUILD_INTERFACE:${libzmq_SOURCE_DIR}/include>
-)
+# target_link_libraries(relay_launch
+#     PRIVATE
+#     libserialport
+#     libzmq
+# )
+# target_include_directories(relay_launch
+#     PRIVATE
+#     $<BUILD_INTERFACE:${libzmq_SOURCE_DIR}/include>
+# )
