@@ -1,3 +1,4 @@
-[deps]
-LibSerialPort = "a05a14c7-6e3b-5ba9-90a2-45558833e1df"
-ZMQ = "c2297ded-f4af-51ae-bb23-16f91089e4e1"
+name = "SerialRelay"
+uuid = "f5a2434b-6210-486e-9c76-47169dbcf6ad"
+authors = ["Alexander A Bouman <alex.bouman@gmail.com>"]
+version = "0.1.0"
