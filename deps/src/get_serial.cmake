@@ -7,7 +7,6 @@ include(ExternalProject)  # pull in the `ExternalProject` CMake module
 
 get_filename_component(SERIALPORT_PRE ${CMAKE_CURRENT_BINARY_DIR}/_deps/libserialport ABSOLUTE)
 get_filename_component(SERIALPORT_DIR ${SERIALPORT_PRE}/libserialport-src ABSOLUTE)
-get_filename_component(SERIALPORT_BIN ${SERIALPORT_PRE}/libserialport-build ABSOLUTE)
 
 ExternalProject_Add(serialport
     PREFIX "${SERIALPORT_PRE}"
@@ -15,7 +14,6 @@ ExternalProject_Add(serialport
 
     BUILD_IN_SOURCE true
     SOURCE_DIR "${SERIALPORT_DIR}"
-    # BINARY_DIR "${SERIALPORT_BIN}"
 
     CONFIGURE_COMMAND ${SERIALPORT_DIR}/autogen.sh && ${SERIALPORT_DIR}/configure
     BUILD_COMMAND make
@@ -25,12 +23,16 @@ ExternalProject_Add(serialport
 
 get_filename_component(SERIALPORT_LIB_DIR ${SERIALPORT_DIR}/.libs ABSOLUTE)
 
-add_library(libserialport STATIC IMPORTED GLOBAL)
+add_library(libserialport SHARED IMPORTED GLOBAL)
 add_dependencies(libserialport serialport)
 
+if (APPLE)
+    set(SERIALPORT_LIB "${SERIALPORT_LIB_DIR}/libserialport.dylib")
+elseif (LINUX)
+    set(SERIALPORT_LIB "${SERIALPORT_LIB_DIR}/libserialport.so")
+endif()
+
+message(STATUS "library found at ${SERIALPORT_LIB}")
 set_target_properties(libserialport PROPERTIES
-    IMPORTED_LOCATION "${SERIALPORT_LIB_DIR}/libserialport.dylib"
+    IMPORTED_LOCATION ${SERIALPORT_LIB}
 )
-# set_target_properties(libserialport PROPERTIES
-#     INTERFACE_INCLUDE_DIRECTORIES ${SERIALPORT_INCLUDES}
-# )
