@@ -3,7 +3,6 @@
 
 #include "serial_relay.h"
 
-
 int main(int argc, char **argv)
 {
     if (argc != 5)
@@ -28,7 +27,7 @@ int main(int argc, char **argv)
 
     relay_launch(port_name,
                  baudrate,
-                //  msg_size,
+                 //  msg_size,
                  sub_endpoint,
                  pub_endpoint);
 

@@ -3,13 +3,10 @@
 
 #define PORT_BUFFER_SIZE 1024
 
-
 typedef struct _serial_zmq_relay
 {
     // Setup port struct
     struct sp_port *port;
-    // Message size
-    size_t msg_size;
 
     // ZMQ socket
     void *context;
@@ -22,13 +19,14 @@ typedef struct _serial_zmq_relay
     // Buffer used for recieving dumping serial port buffer into publisher
     uint8_t *msg_pub_buffer;
 
+    bool should_finish;
+
 } serial_zmq_relay;
 
 // Open a serial port in read write mode and the associated ZMQ ports.
 // If any issue arises closes everything and returns a NULL pointer.
 void *open_relay(const char *port_name,
                  int baudrate,
-                //  size_t msg_size,
                  const char *sub_endpoint,
                  const char *pub_endpoint)
 {
@@ -136,6 +134,8 @@ void *open_relay(const char *port_name,
         goto fail_pub_bind;
     }
 
+    relay->should_finish = false;
+
     return relay;
 
 fail_pub_bind:
@@ -219,7 +219,7 @@ void relay_write(void *relay)
     return _relay_write((serial_zmq_relay *)relay);
 }
 
-bool _close_relay(serial_zmq_relay *relay)
+void _close_relay(serial_zmq_relay *relay)
 {
     // Result check int
     enum sp_return pc;
@@ -242,25 +242,33 @@ bool _close_relay(serial_zmq_relay *relay)
     assert(pc == SP_OK);
     sp_free_port(relay->port);
 
-    return true;
+    return;
 }
 
-bool close_relay(void *relay)
+void close_relay(void *relay)
 {
     return _close_relay((serial_zmq_relay *)relay);
 }
 
-void _relay_launch(serial_zmq_relay *relay)
+void relay_launch(const char *port_name,
+                  int baudrate,
+                  const char *sub_endpoint,
+                  const char *pub_endpoint)
 {
-    while (true)
+    serial_zmq_relay *relay = open_relay(port_name, baudrate, sub_endpoint, pub_endpoint);
+    if (relay == NULL)
     {
-        relay_read(relay);
-        relay_write(relay);
+        fprintf(stderr, "Failed to initialize serial-zmq relay!");
+        return;
     }
-    close_relay(relay);
-}
-
-void relay_launch(void *relay)
-{
-    return _relay_launch((serial_zmq_relay *)relay);
+    else
+    {
+        while (!relay->should_finish)
+        {
+            relay_read(relay);
+            relay_write(relay);
+        }
+        close_relay(relay);
+        return;
+    }
 }
