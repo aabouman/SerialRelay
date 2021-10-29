@@ -32,7 +32,7 @@ ExternalProject_Add(serialport
 # Set location of downloaded serialport libary
 if (APPLE)
     set(SERIALPORT_LIB "${SERIALPORT_PREFIX}/src/serialport-build/.libs/libserialport.dylib")
-elseif (LINUX)
+elseif (UNIX)
     set(SERIALPORT_LIB "${SERIALPORT_PREFIX}/src/serialport-build/.libs/libserialport.so")
 endif()
 
