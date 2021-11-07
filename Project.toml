@@ -1,4 +1,4 @@
-name = "SerialRelay"
-uuid = "f5a2434b-6210-486e-9c76-47169dbcf6ad"
+name = "SerialRelayRust"
+uuid = "2f0e33a2-72ab-436d-8191-4d1bda9fbc7e"
 authors = ["Alexander A Bouman <alex.bouman@gmail.com>"]
 version = "0.1.0"
